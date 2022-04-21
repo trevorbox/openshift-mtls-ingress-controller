@@ -1,0 +1,17 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: nginx-echo-headers
+  labels:
+    type: mtls
+spec:
+  host: nginx-echo-headers-{{ .Release.Namespace }}.{{ .Values.domain }}
+  to:
+    kind: Service
+    name: nginx-echo-headers
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+  wildcardPolicy: None

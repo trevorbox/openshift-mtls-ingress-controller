@@ -1,0 +1,16 @@
+apiVersion: operator.openshift.io/v1
+kind: IngressController
+metadata:
+  name: mtls
+spec:
+  domain: {{ .Values.domain }}
+  clientTLS:
+    clientCA:
+      name: router-ca-certs-default
+    clientCertificatePolicy: Required
+    allowedSubjectPatterns:
+      - "my.trusted.client"
+  replicas: 2
+  routeSelector:
+    matchLabels:
+      type: mtls
