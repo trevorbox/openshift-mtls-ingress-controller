@@ -6,10 +6,10 @@ spec:
   domain: {{ .Values.domain }}
   clientTLS:
     clientCA:
-      name: router-ca-certs-default
+      name: router-ca-certs-mtls
     clientCertificatePolicy: Required
     allowedSubjectPatterns:
-      - "my.trusted.client"
+      - "{{ .Values.commonName }}"
   replicas: 2
   routeSelector:
     matchLabels:
