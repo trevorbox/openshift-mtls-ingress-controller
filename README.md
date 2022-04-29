@@ -29,6 +29,18 @@ helm upgrade -i mtls-ingress-controller helm/mtls-ingress-controller \
    -n openshift-ingress-operator
 ```
 
+## configure the default ingress controller
+
+Adjust the default router to skip `type: mtls` routes with that label.
+
+```sh
+oc patch \
+  -n openshift-ingress-operator \
+  IngressController/default \
+  --type='merge' \
+  -p '{"spec":{"routeSelector":{"matchExpressions":[{"key":"type","operator":"NotIn","values":["mtls"]}]}}}'
+```
+
 ## validate the ingress controller
 
 From the docs...
@@ -53,14 +65,17 @@ For most platforms, the endpointPublishingStrategy value cannot be updated. Howe
 
 Since this cluster is in AWS, you should see the following status in the mtls IngressController's status...
 
-```yaml
-status:
-...
-  endpointPublishingStrategy:
-    loadBalancer:
-      scope: External
-    type: LoadBalancerService
-...
+```sh
+oc get ingresscontroller mtls -n openshift-ingress-operator -o jsonpath={.status.endpointPublishingStrategy} | jq
+```
+
+```json
+{
+  "loadBalancer": {
+    "scope": "External"
+  },
+  "type": "LoadBalancerService"
+}
 ```
 
 Additionally, in the ingress operator pod, there should be logs showing that the external AWS loadbalancer service was configured...
@@ -86,32 +101,28 @@ helm upgrade -i nginx-echo-headers helm/nginx-echo-headers \
 
 ## validate the route
 
-> TODO investigate why both are admitted (seems to still work regardless)
-> See <https://docs.openshift.com/container-platform/4.9/networking/ingress-operator.html>
+The nginx-echo-headers route in the ${TEST_APP_NAMESPACE} should have a status indicating the route is served using the correct ingress controller. The default router/controller should NOT be listed...
 
-The nginx-echo-headers route in the ${TEST_APP_NAMESPACE} should have a status indicating the route is served using the correct ingress controller...
+```sh
+oc get route nginx-echo-headers -n ${TEST_APP_NAMESPACE} -o jsonpath={.status.ingress} | jq
+```
 
-```yaml
-status:
-  ingress:
-    - host: >-
-        nginx-echo-headers-mytestproject.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com
-      routerName: default
-      conditions:
-        - type: Admitted
-          status: 'True'
-          lastTransitionTime: '2022-04-29T18:24:17Z'
-      wildcardPolicy: None
-      routerCanonicalHostname: router-default.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com
-    - host: >-
-        nginx-echo-headers-mytestproject.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com
-      routerName: mtls
-      conditions:
-        - type: Admitted
-          status: 'True'
-          lastTransitionTime: '2022-04-29T18:24:17Z'
-      wildcardPolicy: None
-      routerCanonicalHostname: router-mtls.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com
+```json
+[
+  {
+    "conditions": [
+      {
+        "lastTransitionTime": "2022-04-29T23:44:15Z",
+        "status": "True",
+        "type": "Admitted"
+      }
+    ],
+    "host": "nginx-echo-headers-mytestproject.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com",
+    "routerCanonicalHostname": "router-mtls.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com",
+    "routerName": "mtls",
+    "wildcardPolicy": "None"
+  }
+]
 ```
 
 ## test mtls
@@ -177,7 +188,6 @@ error output...
 Request forbidden by administrative rules.
 </body></html>
 ```
-
 
 ## cleanup
 
