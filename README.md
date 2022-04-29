@@ -1,7 +1,6 @@
-# openshift-mtls-ingress-controller
+# openshift-mtls-ingress-controller in AWS
 
-This is an example of how to create an Openshift Ingress Controller with mTLS enabled.
-
+This is an example of how to create an Openshift Ingress Controller with mTLS enabled in AWS.
 
 - <https://docs.openshift.com/container-platform/4.9/networking/ingress-operator.html#nw-ingress-controller-configuration-parameters_configuring-ingress>
 - <https://rcarrata.com/openshift/mtls-ingress-controller/>
@@ -30,12 +29,89 @@ helm upgrade -i mtls-ingress-controller helm/mtls-ingress-controller \
    -n openshift-ingress-operator
 ```
 
+## validate the ingress controller
+
+From the docs...
+
+```text
+endpointPublishingStrategy is used to publish the Ingress Controller endpoints to other networks, enable load balancer integrations, and provide access to other systems.
+
+If not set, the default value is based on infrastructure.config.openshift.io/cluster .status.platform:
+
+AWS: LoadBalancerService (with external scope)
+
+Azure: LoadBalancerService (with external scope)
+
+GCP: LoadBalancerService (with external scope)
+
+Bare metal: NodePortService
+
+Other: HostNetwork
+
+For most platforms, the endpointPublishingStrategy value cannot be updated. However, on GCP, you can configure the loadbalancer.providerParameters.gcp.clientAccess subfield.
+```
+
+Since this cluster is in AWS, you should see the following status in the mtls IngressController's status...
+
+```yaml
+status:
+...
+  endpointPublishingStrategy:
+    loadBalancer:
+      scope: External
+    type: LoadBalancerService
+...
+```
+
+Additionally, in the ingress operator pod, there should be logs showing that the external AWS loadbalancer service was configured...
+
+```log
+2022-04-29T18:22:51.636Z	INFO	operator.dns	aws/dns.go:505	updated DNS record	{"zone id": "Z01402822UWTV44PDZE3E", "domain": "*.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com.", "target": "a67febb59bf8941fc81a06c8ee8537c0-77987723.us-east-2.elb.amazonaws.com", "response": "{\n  ChangeInfo: {\n    Id: \"/change/C0676777CPZMOIQIN3K2\",\n    Status: \"PENDING\",\n    SubmittedAt: 2022-04-29 18:22:51.615 +0000 UTC\n  }\n}"}
+2022-04-29T18:22:51.636Z	INFO	operator.dns	aws/dns.go:467	upserted DNS record	{"record": {"dnsName":"*.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com.","targets":["a67febb59bf8941fc81a06c8ee8537c0-77987723.us-east-2.elb.amazonaws.com"],"recordType":"CNAME","recordTTL":30}, "zone": {"tags":{"Name":"cluster-4lcpr-m8mzc-int","kubernetes.io/cluster/cluster-4lcpr-m8mzc":"owned"}}}
+2022-04-29T18:22:51.636Z	INFO	operator.dns_controller	dns/controller.go:190	published DNS record to zone	{"record": {"dnsName":"*.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com.","targets":["a67febb59bf8941fc81a06c8ee8537c0-77987723.us-east-2.elb.amazonaws.com"],"recordType":"CNAME","recordTTL":30}, "dnszone": {"tags":{"Name":"cluster-4lcpr-m8mzc-int","kubernetes.io/cluster/cluster-4lcpr-m8mzc":"owned"}}}
+2022-04-29T18:22:51.838Z	INFO	operator.dns	aws/dns.go:505	updated DNS record	{"zone id": "Z04791052DFJMW6BFGVQ5", "domain": "*.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com.", "target": "a67febb59bf8941fc81a06c8ee8537c0-77987723.us-east-2.elb.amazonaws.com", "response": "{\n  ChangeInfo: {\n    Id: \"/change/C0341369SLQCPPNL60W8\",\n    Status: \"PENDING\",\n    SubmittedAt: 2022-04-29 18:22:51.816 +0000 UTC\n  }\n}"}
+2022-04-29T18:22:51.838Z	INFO	operator.dns	aws/dns.go:467	upserted DNS record	{"record": {"dnsName":"*.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com.","targets":["a67febb59bf8941fc81a06c8ee8537c0-77987723.us-east-2.elb.amazonaws.com"],"recordType":"CNAME","recordTTL":30}, "zone": {"id":"Z04791052DFJMW6BFGVQ5"}}
+2022-04-29T18:22:51.838Z	INFO	operator.dns_controller	dns/controller.go:190	published DNS record to zone	{"record": {"dnsName":"*.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com.","targets":["a67febb59bf8941fc81a06c8ee8537c0-77987723.us-east-2.elb.amazonaws.com"],"recordType":"CNAME","recordTTL":30}, "dnszone": {"id":"Z04791052DFJMW6BFGVQ5"}}
+2022-04-29T18:22:51.851Z	INFO	operator.dns_controller	controller/controller.go:298	updated dnsrecord	{"dnsrecord": {"metadata":{"name":"mtls-wildcard","namespace":"openshift-ingress-operator","uid":"51f194e4-808a-480d-864c-1a6374ab3381","resourceVersion":"39330","generation":1,"creationTimestamp":"2022-04-29T18:22:51Z","labels":{"ingresscontroller.operator.openshift.io/owning-ingresscontroller":"mtls"},"ownerReferences":[{"apiVersion":"operator.openshift.io/v1","kind":"IngressController","name":"mtls","uid":"7a57612d-bbe3-41e6-958f-b0d77ceaee83","controller":true,"blockOwnerDeletion":true}],"finalizers":["operator.openshift.io/ingress-dns"],"managedFields":[{"manager":"ingress-operator","operation":"Update","apiVersion":"ingress.operator.openshift.io/v1","time":"2022-04-29T18:22:51Z","fieldsType":"FieldsV1","fieldsV1":{"f:metadata":{"f:finalizers":{".":{},"v:\"operator.openshift.io/ingress-dns\"":{}},"f:labels":{".":{},"f:ingresscontroller.operator.openshift.io/owning-ingresscontroller":{}},"f:ownerReferences":{".":{},"k:{\"uid\":\"7a57612d-bbe3-41e6-958f-b0d77ceaee83\"}":{}}},"f:spec":{".":{},"f:dnsName":{},"f:recordTTL":{},"f:recordType":{},"f:targets":{}}}},{"manager":"ingress-operator","operation":"Update","apiVersion":"ingress.operator.openshift.io/v1","time":"2022-04-29T18:22:51Z","fieldsType":"FieldsV1","fieldsV1":{"f:status":{".":{},"f:observedGeneration":{},"f:zones":{}}}}]},"spec":{"dnsName":"*.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com.","targets":["a67febb59bf8941fc81a06c8ee8537c0-77987723.us-east-2.elb.amazonaws.com"],"recordType":"CNAME","recordTTL":30},"status":{"zones":[{"dnsZone":{"tags":{"Name":"cluster-4lcpr-m8mzc-int","kubernetes.io/cluster/cluster-4lcpr-m8mzc":"owned"}},"conditions":[{"type":"Failed","status":"False","lastTransitionTime":"2022-04-29T18:22:51Z","reason":"ProviderSuccess","message":"The DNS provider succeeded in ensuring the record"}]},{"dnsZone":{"id":"Z04791052DFJMW6BFGVQ5"},"conditions":[{"type":"Failed","status":"False","lastTransitionTime":"2022-04-29T18:22:51Z","reason":"ProviderSuccess","message":"The DNS provider succeeded in ensuring the record"}]}],"observedGeneration":1}}}
+2022-04-29T18:22:51.851Z	INFO	operator.dns_controller	controller/controller.go:298	reconciling	{"request": "openshift-ingress-operator/mtls-wildcard"}
+```
+
 ## install test app
 
 ```sh
 helm upgrade -i nginx-echo-headers helm/nginx-echo-headers \
   --set domain=${INGRESS_DOMAIN} \
   -n ${TEST_APP_NAMESPACE} --create-namespace
+```
+
+## validate the route
+
+> TODO investigate why both are admitted (seems to still work regardless)
+> See <https://docs.openshift.com/container-platform/4.9/networking/ingress-operator.html>
+
+The nginx-echo-headers route in the ${TEST_APP_NAMESPACE} should have a status indicating the route is served using the correct ingress controller...
+
+```yaml
+status:
+  ingress:
+    - host: >-
+        nginx-echo-headers-mytestproject.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com
+      routerName: default
+      conditions:
+        - type: Admitted
+          status: 'True'
+          lastTransitionTime: '2022-04-29T18:24:17Z'
+      wildcardPolicy: None
+      routerCanonicalHostname: router-default.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com
+    - host: >-
+        nginx-echo-headers-mytestproject.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com
+      routerName: mtls
+      conditions:
+        - type: Admitted
+          status: 'True'
+          lastTransitionTime: '2022-04-29T18:24:17Z'
+      wildcardPolicy: None
+      routerCanonicalHostname: router-mtls.mtls.apps.cluster-4lcpr.4lcpr.sandbox893.opentlc.com
 ```
 
 ## test mtls
